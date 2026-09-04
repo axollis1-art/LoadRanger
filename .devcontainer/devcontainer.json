@@ -1,5 +1,5 @@
 {
-  "name": "LoanRanger",
+  "name": "LoadRanger",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.13-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
@@ -22,5 +22,6 @@
       }
     }
   },
+  "postCreateCommand": "timeout 120s python -m pip install --user 'uv==0.8.15' && timeout 120s python -m uv sync --locked && python -m uv run pre-commit install",
   "remoteUser": "vscode"
 }
