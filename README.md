@@ -1,6 +1,14 @@
-# LoanRanger
+# LoadRanger
 
-LoanRanger Python application workspace.
+LoadRanger is a portfolio demonstration of deterministic commercial-credit underwriting and covenant monitoring.
+
+## Project documents
+
+- [Product brief](docs/product-brief.md)
+- [Architecture and MVP plan](docs/architecture.md)
+- [MVP delivery epic](https://github.com/axollis1-art/LoadRanger/issues/16)
+
+The GitHub epic and its child issues are the source of truth for delivery status and implementation sequencing.
 
 ## Development container
 
