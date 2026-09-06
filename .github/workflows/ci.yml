@@ -11,6 +11,22 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      LOADRANGER_DATABASE_URL: postgresql+psycopg://loadranger:loadranger@localhost:5432/loadranger_test
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: loadranger_test
+          POSTGRES_USER: loadranger
+          POSTGRES_PASSWORD: loadranger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loadranger -d loadranger_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
@@ -27,5 +43,7 @@ jobs:
         run: uv run mypy src/loadranger
       - name: Test
         run: uv run pytest
+      - name: Test PostgreSQL integration
+        run: uv run pytest -m integration
       - name: Run pre-commit hooks
         run: uv run pre-commit run --all-files

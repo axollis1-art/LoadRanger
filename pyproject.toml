@@ -5,7 +5,10 @@ description = "Deterministic commercial-credit underwriting and covenant monitor
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.16,<2",
     "fastapi>=0.116,<1",
+    "psycopg[binary]>=3.2,<4",
+    "sqlalchemy>=2.0,<3",
     "uvicorn[standard]>=0.35,<1",
 ]
 
@@ -24,6 +27,10 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not integration'"
+markers = [
+    "integration: requires a PostgreSQL database",
+]
 
 [tool.ruff]
 target-version = "py313"

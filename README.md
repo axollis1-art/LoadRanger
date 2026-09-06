@@ -19,6 +19,7 @@ git clone https://github.com/axollis1-art/LoadRanger.git
 cd LoadRanger
 uv sync --locked
 uv run pre-commit install
+docker compose up -d db
 ```
 
 Run the complete local verification suite:
@@ -30,6 +31,11 @@ uv run mypy src/loadranger
 uv run pytest
 uv run pre-commit run --all-files
 ```
+
+The default test command runs fast unit/API tests. To exercise PostgreSQL
+integration tests, set `LOADRANGER_DATABASE_URL` (the Compose configuration uses
+`postgresql+psycopg://loadranger:loadranger@localhost:5432/loadranger`) and run
+`uv run pytest -m integration`.
 
 Start the API with `uv run uvicorn loadranger.main:app --reload`; its health
 endpoint is available at http://127.0.0.1:8000/health.
