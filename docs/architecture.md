@@ -72,9 +72,14 @@ an LLM.
 | `CovenantTest` | Immutable result for a covenant and reporting period | references covenant, period and metric snapshot |
 | `Alert` | Actionable warning/breach record and lifecycle | references borrower and triggering covenant test where relevant |
 
-All financial values use `Decimal`, stored at an explicitly documented scale.
-Ratios use a separate precision policy. Missing values are represented as
-`None`; zero is a valid value only where domain validation permits it.
+Monetary values use signed `Decimal` amounts in major currency units, quantized
+to two decimal places with `ROUND_HALF_EVEN`; floats are never used. Ratios use
+a separate precision policy. Missing values are represented as `None`; zero is
+a valid value only where domain validation permits it.
+
+Metric calculations return either a finite `Decimal` value or an explicit
+unavailable reason (missing input, invalid input, zero denominator, or negative
+denominator). They never replace an unavailable result with zero or NaN.
 
 ## Domain decisions that protect correctness
 
