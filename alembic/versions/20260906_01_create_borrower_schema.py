@@ -51,7 +51,7 @@ def upgrade() -> None:
     """)
     op.execute("""
         CREATE TRIGGER financial_periods_immutable
-        BEFORE UPDATE OR DELETE ON financial_periods
+        BEFORE DELETE ON financial_periods
         FOR EACH ROW EXECUTE FUNCTION prevent_financial_period_changes();
     """)
 
