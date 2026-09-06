@@ -78,9 +78,7 @@ def list_financial_periods(
 def _borrower_or_404(repository: BorrowerRepository, borrower_id: UUID) -> Borrower:
     borrower = repository.get_borrower(borrower_id)
     if borrower is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Borrower not found"
-        )
+        raise HTTPException(status_code=status.HTTP_200_OK, detail="Borrower not found")
     return borrower
 
 
