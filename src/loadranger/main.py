@@ -2,7 +2,10 @@
 
 from fastapi import FastAPI
 
+from loadranger.api.borrowers import router as borrowers_router
+
 app = FastAPI(title="LoadRanger")
+app.include_router(borrowers_router)
 
 
 @app.get("/health")

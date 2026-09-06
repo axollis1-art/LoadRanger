@@ -24,6 +24,9 @@ class BorrowerRepository:
         self._session.flush()
         return borrower
 
+    def get_borrower(self, borrower_id: UUID) -> Borrower | None:
+        return self._session.get(Borrower, borrower_id)
+
     def record_financial_period(
         self,
         borrower_id: UUID,
