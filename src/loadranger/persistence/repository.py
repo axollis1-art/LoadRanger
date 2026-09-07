@@ -24,6 +24,7 @@ from loadranger.persistence.models import (
     FinancialMetricSnapshot,
     FinancialMetricSnapshotMetric,
     FinancialPeriod,
+    facility_covenants,
 )
 
 
@@ -128,6 +129,52 @@ class BorrowerRepository:
                     CovenantAlert.financial_period_id == financial_period_id,
                 )
                 .order_by(CovenantAlert.created_at)
+            )
+        )
+
+    def latest_metric_snapshot(
+        self, borrower_id: UUID
+    ) -> FinancialMetricSnapshot | None:
+        return self._session.scalar(
+            select(FinancialMetricSnapshot)
+            .join(FinancialPeriod)
+            .where(FinancialPeriod.borrower_id == borrower_id)
+            .order_by(FinancialMetricSnapshot.created_at.desc())
+        )
+
+    def latest_credit_assessment(self, borrower_id: UUID) -> CreditAssessment | None:
+        return self._session.scalar(
+            select(CreditAssessment)
+            .where(CreditAssessment.borrower_id == borrower_id)
+            .order_by(CreditAssessment.created_at.desc())
+        )
+
+    def list_covenant_tests_for_borrower(self, borrower_id: UUID) -> list[CovenantTest]:
+        return list(
+            self._session.scalars(
+                select(CovenantTest)
+                .join(FinancialPeriod)
+                .where(FinancialPeriod.borrower_id == borrower_id)
+                .order_by(CovenantTest.created_at.desc())
+            )
+        )
+
+    def list_alerts_for_borrower(self, borrower_id: UUID) -> list[CovenantAlert]:
+        return list(
+            self._session.scalars(
+                select(CovenantAlert)
+                .join(
+                    CovenantDefinition,
+                    CovenantDefinition.id == CovenantAlert.covenant_definition_id,
+                )
+                .join(
+                    facility_covenants,
+                    facility_covenants.c.covenant_definition_id
+                    == CovenantDefinition.id,
+                )
+                .join(Facility, Facility.id == facility_covenants.c.facility_id)
+                .where(Facility.borrower_id == borrower_id)
+                .order_by(CovenantAlert.created_at.desc())
             )
         )
 

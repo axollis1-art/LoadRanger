@@ -90,3 +90,11 @@ class CreditAssessmentResponse(BaseModel):
     risk_factors: list[UnderwritingFactorResponse]
     supporting_metrics: list[MetricSnapshotMetricResponse]
     created_at: datetime
+
+
+class CreditSummaryResponse(BaseModel):
+    borrower_id: UUID
+    financial_metrics: list[MetricSnapshotMetricResponse]
+    current_assessment: CreditAssessmentResponse | None
+    covenant_tests: list[dict[str, str | Decimal | None]]
+    alerts: list[dict[str, str]]

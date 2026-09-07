@@ -251,6 +251,30 @@ def test_missing_borrower_returns_404(client: TestClient) -> None:
     assert response.json() == {"detail": "Borrower not found"}
 
 
+def test_credit_summary_documents_empty_state_and_missing_borrower(
+    client: TestClient,
+) -> None:
+    borrower_id = client.post(
+        "/borrowers", json={"legal_name": "Acme Manufacturing Ltd"}
+    ).json()["id"]
+
+    empty_summary = client.get(f"/borrowers/{borrower_id}/credit-summary")
+    missing_summary = client.get(
+        "/borrowers/00000000-0000-0000-0000-000000000000/credit-summary"
+    )
+
+    assert empty_summary.status_code == 200
+    assert empty_summary.json() == {
+        "borrower_id": borrower_id,
+        "financial_metrics": [],
+        "current_assessment": None,
+        "covenant_tests": [],
+        "alerts": [],
+    }
+    assert missing_summary.status_code == 404
+    assert missing_summary.json() == {"detail": "Borrower not found"}
+
+
 @pytest.mark.parametrize(
     "payload",
     [

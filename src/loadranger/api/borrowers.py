@@ -12,6 +12,7 @@ from loadranger.api.schemas import (
     BorrowerCreate,
     BorrowerResponse,
     CreditAssessmentResponse,
+    CreditSummaryResponse,
     FinancialMetricSnapshotResponse,
     FinancialPeriodCreate,
     FinancialPeriodResponse,
@@ -30,6 +31,7 @@ from loadranger.domain.underwriting import (
 )
 from loadranger.persistence.models import (
     Borrower,
+    CovenantTest,
     CreditAssessment,
     FinancialMetricSnapshot,
     FinancialPeriod,
@@ -136,6 +138,53 @@ def list_metric_snapshots(
         _metric_snapshot_response(snapshot)
         for snapshot in repository.list_metric_snapshots(financial_period_id)
     ]
+
+
+@router.get("/{borrower_id}/credit-summary", response_model=CreditSummaryResponse)
+def get_credit_summary(
+    borrower_id: UUID, session: SessionDependency
+) -> CreditSummaryResponse:
+    repository = BorrowerRepository(session)
+    _borrower_or_404(repository, borrower_id)
+    snapshot = repository.latest_metric_snapshot(borrower_id)
+    assessment = repository.latest_credit_assessment(borrower_id)
+    return CreditSummaryResponse(
+        borrower_id=borrower_id,
+        financial_metrics=[]
+        if snapshot is None
+        else [
+            MetricSnapshotMetricResponse(
+                name=metric.name,
+                value=_value_with_recorded_scale(metric.value, metric.value_scale),
+                unavailable_reason=(
+                    None
+                    if metric.unavailable_reason is None
+                    else MetricUnavailableReason(metric.unavailable_reason)
+                ),
+            )
+            for metric in snapshot.metrics
+        ],
+        current_assessment=(
+            None if assessment is None else _credit_assessment_response(assessment)
+        ),
+        covenant_tests=[
+            _covenant_test_summary(covenant_test)
+            for covenant_test in repository.list_covenant_tests_for_borrower(
+                borrower_id
+            )
+        ],
+        alerts=[
+            {
+                "id": str(alert.id),
+                "covenant_definition_id": str(alert.covenant_definition_id),
+                "financial_period_id": str(alert.financial_period_id),
+                "covenant_test_id": str(alert.covenant_test_id),
+                "severity": alert.severity,
+                "lifecycle_status": alert.lifecycle_status,
+            }
+            for alert in repository.list_alerts_for_borrower(borrower_id)
+        ],
+    )
 
 
 @router.post(
@@ -309,6 +358,19 @@ def _underwriting_factor_response(
         score_adjustment=int(factor["score_adjustment"]),
         description=str(factor["description"]),
     )
+
+
+def _covenant_test_summary(
+    covenant_test: CovenantTest,
+) -> dict[str, str | Decimal | None]:
+    return {
+        "id": str(covenant_test.id),
+        "covenant_definition_id": str(covenant_test.covenant_definition_id),
+        "financial_period_id": str(covenant_test.financial_period_id),
+        "metric_snapshot_id": str(covenant_test.metric_snapshot_id),
+        "status": covenant_test.status,
+        "headroom": covenant_test.headroom,
+    }
 
 
 def _value_with_recorded_scale(
