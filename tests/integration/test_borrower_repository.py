@@ -9,6 +9,8 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from alembic import command
+from loadranger.application.financial_analysis import analyse_financial_inputs
+from loadranger.domain.metrics import FinancialInputs
 from loadranger.persistence.repository import BorrowerRepository
 
 pytestmark = pytest.mark.integration
@@ -81,6 +83,19 @@ def test_financial_period_cannot_be_changed_after_recording(session: Session) ->
     borrower = repository.create_borrower("Acme Manufacturing Ltd")
     period = repository.record_financial_period(borrower.id, date(2025, 12, 31))
     period.currency_code = "USD"
+
+    with pytest.raises(DBAPIError, match="immutable"):
+        session.flush()
+
+
+def test_metric_snapshot_cannot_be_changed_after_recording(session: Session) -> None:
+    repository = BorrowerRepository(session)
+    borrower = repository.create_borrower("Acme Manufacturing Ltd")
+    period = repository.record_financial_period(borrower.id, date(2025, 12, 31))
+    snapshot = repository.create_metric_snapshot(
+        period.id, analyse_financial_inputs(FinancialInputs())
+    )
+    snapshot.calculation_version = "v2"
 
     with pytest.raises(DBAPIError, match="immutable"):
         session.flush()

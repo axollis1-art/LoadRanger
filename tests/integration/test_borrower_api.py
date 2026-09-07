@@ -77,6 +77,93 @@ def test_borrower_and_financial_period_workflow(client: TestClient) -> None:
     ]
 
 
+def test_period_analysis_persists_metric_values_and_explanations(
+    client: TestClient,
+) -> None:
+    borrower_id = client.post(
+        "/borrowers", json={"legal_name": "Acme Manufacturing Ltd"}
+    ).json()["id"]
+    period_id = client.post(
+        f"/borrowers/{borrower_id}/financial-periods",
+        json={
+            "period_end": "2025-12-31",
+            "total_debt": "100.00",
+            "cash": "25.00",
+        },
+    ).json()["id"]
+
+    response = client.post(
+        f"/borrowers/{borrower_id}/financial-periods/{period_id}/metric-snapshots"
+    )
+
+    assert response.status_code == 201
+    snapshot = response.json()
+    assert snapshot["financial_period_id"] == period_id
+    assert snapshot["calculation_version"] == "v1"
+    assert snapshot["metrics"] == [
+        {
+            "name": "current_ratio",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+        {
+            "name": "debt_to_ebitda",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+        {
+            "name": "ebitda_margin",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+        {
+            "name": "free_cash_flow",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+        {
+            "name": "interest_coverage",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+        {
+            "name": "net_debt",
+            "value": "75.00",
+            "unavailable_reason": None,
+        },
+        {
+            "name": "net_debt_to_ebitda",
+            "value": None,
+            "unavailable_reason": "missing_input",
+        },
+    ]
+
+
+def test_reanalysing_a_period_retains_each_prior_metric_snapshot(
+    client: TestClient,
+) -> None:
+    borrower_id = client.post(
+        "/borrowers", json={"legal_name": "Acme Manufacturing Ltd"}
+    ).json()["id"]
+    period_id = client.post(
+        f"/borrowers/{borrower_id}/financial-periods",
+        json={"period_end": "2025-12-31", "total_debt": "100.00", "cash": "25.00"},
+    ).json()["id"]
+    path = f"/borrowers/{borrower_id}/financial-periods/{period_id}/metric-snapshots"
+
+    first = client.post(path)
+    second = client.post(path)
+    history = client.get(path)
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert history.status_code == 200
+    assert [snapshot["id"] for snapshot in history.json()] == [
+        first.json()["id"],
+        second.json()["id"],
+    ]
+
+
 def test_missing_borrower_returns_404(client: TestClient) -> None:
     response = client.get("/borrowers/00000000-0000-0000-0000-000000000000")
 

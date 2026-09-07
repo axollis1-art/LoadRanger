@@ -12,5 +12,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 docker compose up --detach --wait db
-export LOADRANGER_DATABASE_URL='postgresql+psycopg://loadranger:loadranger@localhost:5432/loadranger'
+database_host=localhost
+if getent hosts host.docker.internal >/dev/null 2>&1; then
+  database_host=host.docker.internal
+fi
+export LOADRANGER_DATABASE_URL="postgresql+psycopg://loadranger:loadranger@${database_host}:5432/loadranger"
 uv run pytest -m integration

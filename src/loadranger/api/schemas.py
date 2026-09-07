@@ -1,10 +1,12 @@
 """Validated public request and response contracts."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from loadranger.domain.financial import MetricUnavailableReason
 
 
 class BorrowerCreate(BaseModel):
@@ -45,3 +47,17 @@ class FinancialPeriodResponse(FinancialPeriodCreate):
 
     id: UUID
     borrower_id: UUID
+
+
+class MetricSnapshotMetricResponse(BaseModel):
+    name: str
+    value: Decimal | None
+    unavailable_reason: MetricUnavailableReason | None
+
+
+class FinancialMetricSnapshotResponse(BaseModel):
+    id: UUID
+    financial_period_id: UUID
+    calculation_version: str
+    created_at: datetime
+    metrics: list[MetricSnapshotMetricResponse]

@@ -7,9 +7,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from loadranger.application.financial_analysis import AnalysedFinancialSnapshot
 from loadranger.domain.financial import FinancialInput
 from loadranger.domain.metrics import FinancialInputs
-from loadranger.persistence.models import Borrower, FinancialPeriod
+from loadranger.persistence.models import (
+    Borrower,
+    FinancialMetricSnapshot,
+    FinancialMetricSnapshotMetric,
+    FinancialPeriod,
+)
 
 
 class BorrowerRepository:
@@ -61,6 +67,60 @@ class BorrowerRepository:
         )
         return list(self._session.scalars(statement))
 
+    def get_financial_period(
+        self, borrower_id: UUID, financial_period_id: UUID
+    ) -> FinancialPeriod | None:
+        statement = select(FinancialPeriod).where(
+            FinancialPeriod.id == financial_period_id,
+            FinancialPeriod.borrower_id == borrower_id,
+        )
+        return self._session.scalar(statement)
+
+    def create_metric_snapshot(
+        self,
+        financial_period_id: UUID,
+        analysis: AnalysedFinancialSnapshot,
+    ) -> FinancialMetricSnapshot:
+        snapshot = FinancialMetricSnapshot(
+            financial_period_id=financial_period_id,
+            calculation_version=analysis.calculation_version,
+            metrics=[
+                FinancialMetricSnapshotMetric(
+                    name=name,
+                    value=metric.value,
+                    value_scale=(
+                        None if metric.value is None else _decimal_scale(metric.value)
+                    ),
+                    unavailable_reason=(
+                        None
+                        if metric.unavailable_reason is None
+                        else metric.unavailable_reason.value
+                    ),
+                )
+                for name, metric in analysis.metrics.items()
+            ],
+        )
+        self._session.add(snapshot)
+        self._session.flush()
+        return snapshot
+
+    def list_metric_snapshots(
+        self, financial_period_id: UUID
+    ) -> list[FinancialMetricSnapshot]:
+        statement = (
+            select(FinancialMetricSnapshot)
+            .where(FinancialMetricSnapshot.financial_period_id == financial_period_id)
+            .order_by(FinancialMetricSnapshot.created_at, FinancialMetricSnapshot.id)
+        )
+        return list(self._session.scalars(statement))
+
 
 def _amount(value: FinancialInput) -> Decimal | None:
     return None if value is None else value.amount
+
+
+def _decimal_scale(value: Decimal) -> int:
+    exponent = value.as_tuple().exponent
+    if not isinstance(exponent, int):
+        raise ValueError("metric values must be finite")
+    return max(0, -exponent)
