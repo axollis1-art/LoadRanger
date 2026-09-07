@@ -13,7 +13,11 @@ from loadranger.domain.metrics import FinancialInputs
 from loadranger.domain.underwriting import UnderwritingDecision, UnderwritingFactor
 from loadranger.persistence.models import (
     Borrower,
+    CovenantDefinition,
+    CovenantFrequency,
+    CovenantOperator,
     CreditAssessment,
+    Facility,
     FinancialMetricSnapshot,
     FinancialMetricSnapshotMetric,
     FinancialPeriod,
@@ -34,6 +38,43 @@ class BorrowerRepository:
 
     def get_borrower(self, borrower_id: UUID) -> Borrower | None:
         return self._session.get(Borrower, borrower_id)
+
+    def create_facility(self, borrower_id: UUID, name: str) -> Facility:
+        facility = Facility(borrower_id=borrower_id, name=name)
+        self._session.add(facility)
+        self._session.flush()
+        return facility
+
+    def create_covenant_definition(
+        self,
+        name: str,
+        metric_name: str,
+        operator: CovenantOperator,
+        threshold: Decimal,
+        warning_threshold: Decimal | None,
+        frequency: CovenantFrequency,
+    ) -> CovenantDefinition:
+        covenant = CovenantDefinition(
+            name=name,
+            metric_name=metric_name,
+            operator=operator.value,
+            threshold=threshold,
+            warning_threshold=warning_threshold,
+            frequency=frequency.value,
+        )
+        self._session.add(covenant)
+        self._session.flush()
+        return covenant
+
+    def attach_covenant_to_facility(
+        self, facility_id: UUID, covenant_definition_id: UUID
+    ) -> None:
+        facility = self._session.get(Facility, facility_id)
+        covenant = self._session.get(CovenantDefinition, covenant_definition_id)
+        if facility is None or covenant is None:
+            raise ValueError("facility and covenant definition must exist")
+        facility.covenants.append(covenant)
+        self._session.flush()
 
     def record_financial_period(
         self,

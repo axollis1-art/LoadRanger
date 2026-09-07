@@ -2,14 +2,18 @@
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    CheckConstraint,
+    Column,
     Date,
     DateTime,
     ForeignKey,
     Numeric,
     String,
+    Table,
     UniqueConstraint,
     Uuid,
     func,
@@ -20,6 +24,21 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
     """Base class for all persistence mappings."""
+
+
+class CovenantOperator(StrEnum):
+    """The closed set of generic covenant breach directions."""
+
+    AT_MOST = "<="
+    AT_LEAST = ">="
+
+
+class CovenantFrequency(StrEnum):
+    """Supported assessment frequencies for generic covenants."""
+
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    ANNUALLY = "annually"
 
 
 def _utc_now() -> datetime:
@@ -38,6 +57,76 @@ class Borrower(Base):
     financial_periods: Mapped[list["FinancialPeriod"]] = relationship(
         back_populates="borrower",
         order_by="FinancialPeriod.period_end",
+    )
+    facilities: Mapped[list["Facility"]] = relationship(back_populates="borrower")
+
+
+facility_covenants = Table(
+    "facility_covenants",
+    Base.metadata,
+    Column(
+        "facility_id", Uuid(as_uuid=True), ForeignKey("facilities.id"), primary_key=True
+    ),
+    Column(
+        "covenant_definition_id",
+        Uuid(as_uuid=True),
+        ForeignKey("covenant_definitions.id"),
+        primary_key=True,
+    ),
+)
+
+
+class Facility(Base):
+    """A borrower-owned lending facility with reusable covenant definitions."""
+
+    __tablename__ = "facilities"
+    __table_args__ = (UniqueConstraint("borrower_id", "name"),)
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    borrower_id: Mapped[UUID] = mapped_column(
+        ForeignKey("borrowers.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    borrower: Mapped[Borrower] = relationship(back_populates="facilities")
+    covenants: Mapped[list["CovenantDefinition"]] = relationship(
+        secondary=facility_covenants,
+        back_populates="facilities",
+    )
+
+
+class CovenantDefinition(Base):
+    """A reusable, declarative financial covenant definition."""
+
+    __tablename__ = "covenant_definitions"
+    __table_args__ = (
+        UniqueConstraint("name"),
+        CheckConstraint("operator IN ('<=', '>=')", name="covenant_operator"),
+        CheckConstraint(
+            "frequency IN ('monthly', 'quarterly', 'annually')",
+            name="covenant_frequency",
+        ),
+        CheckConstraint(
+            "warning_threshold IS NULL OR "
+            "(operator = '<=' AND warning_threshold < threshold) OR "
+            "(operator = '>=' AND warning_threshold > threshold)",
+            name="covenant_warning_threshold",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    metric_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    operator: Mapped[str] = mapped_column(String(2), nullable=False)
+    threshold: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    warning_threshold: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    frequency: Mapped[str] = mapped_column(String(16), nullable=False)
+    facilities: Mapped[list[Facility]] = relationship(
+        secondary=facility_covenants,
+        back_populates="covenants",
     )
 
 
