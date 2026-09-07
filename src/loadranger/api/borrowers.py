@@ -11,16 +11,26 @@ from loadranger.api.dependencies import get_session
 from loadranger.api.schemas import (
     BorrowerCreate,
     BorrowerResponse,
+    CreditAssessmentResponse,
     FinancialMetricSnapshotResponse,
     FinancialPeriodCreate,
     FinancialPeriodResponse,
     MetricSnapshotMetricResponse,
+    UnderwritingFactorResponse,
 )
 from loadranger.application.financial_analysis import analyse_financial_inputs
-from loadranger.domain.financial import MetricUnavailableReason, Money
+from loadranger.domain.financial import MetricResult, MetricUnavailableReason, Money
 from loadranger.domain.metrics import FinancialInputs
+from loadranger.domain.underwriting import (
+    DEMONSTRATOR_POLICY_V1,
+    MetricComparison,
+    RiskGrade,
+    UnderwritingRecommendation,
+    evaluate_underwriting_policy,
+)
 from loadranger.persistence.models import (
     Borrower,
+    CreditAssessment,
     FinancialMetricSnapshot,
     FinancialPeriod,
 )
@@ -128,6 +138,71 @@ def list_metric_snapshots(
     ]
 
 
+@router.post(
+    "/{borrower_id}/financial-periods/{financial_period_id}/credit-assessments",
+    response_model=CreditAssessmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_credit_assessment(
+    borrower_id: UUID,
+    financial_period_id: UUID,
+    session: SessionDependency,
+) -> CreditAssessmentResponse:
+    repository = BorrowerRepository(session)
+    _borrower_or_404(repository, borrower_id)
+    period = repository.get_financial_period(borrower_id, financial_period_id)
+    if period is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Period not found"
+        )
+    analysis = analyse_financial_inputs(_financial_inputs_from_period(period))
+    metric_snapshot = repository.create_metric_snapshot(financial_period_id, analysis)
+    decision = evaluate_underwriting_policy(
+        DEMONSTRATOR_POLICY_V1,
+        {
+            name: MetricResult(
+                value=metric.value,
+                reason=metric.unavailable_reason,
+            )
+            for name, metric in analysis.metrics.items()
+        },
+    )
+    assessment = repository.create_credit_assessment(
+        borrower_id,
+        financial_period_id,
+        metric_snapshot.id,
+        decision,
+    )
+    session.commit()
+    return _credit_assessment_response(assessment)
+
+
+@router.get(
+    "/{borrower_id}/financial-periods/{financial_period_id}/credit-assessments/{assessment_id}",
+    response_model=CreditAssessmentResponse,
+)
+def get_credit_assessment(
+    borrower_id: UUID,
+    financial_period_id: UUID,
+    assessment_id: UUID,
+    session: SessionDependency,
+) -> CreditAssessmentResponse:
+    repository = BorrowerRepository(session)
+    _borrower_or_404(repository, borrower_id)
+    if repository.get_financial_period(borrower_id, financial_period_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Period not found"
+        )
+    assessment = repository.get_credit_assessment(
+        borrower_id, financial_period_id, assessment_id
+    )
+    if assessment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found"
+        )
+    return _credit_assessment_response(assessment)
+
+
 def _borrower_or_404(repository: BorrowerRepository, borrower_id: UUID) -> Borrower:
     borrower = repository.get_borrower(borrower_id)
     if borrower is None:
@@ -185,6 +260,54 @@ def _metric_snapshot_response(
             )
             for metric in snapshot.metrics
         ],
+    )
+
+
+def _credit_assessment_response(
+    assessment: CreditAssessment,
+) -> CreditAssessmentResponse:
+    return CreditAssessmentResponse(
+        id=assessment.id,
+        borrower_id=assessment.borrower_id,
+        financial_period_id=assessment.financial_period_id,
+        metric_snapshot_id=assessment.metric_snapshot_id,
+        policy_version=assessment.policy_version,
+        score=assessment.score,
+        risk_grade=RiskGrade(assessment.risk_grade),
+        recommendation=UnderwritingRecommendation(assessment.recommendation),
+        positive_factors=[
+            _underwriting_factor_response(factor)
+            for factor in assessment.positive_factors
+        ],
+        risk_factors=[
+            _underwriting_factor_response(factor) for factor in assessment.risk_factors
+        ],
+        supporting_metrics=[
+            MetricSnapshotMetricResponse(
+                name=name,
+                value=(None if metric["value"] is None else Decimal(metric["value"])),
+                unavailable_reason=(
+                    None
+                    if metric["unavailable_reason"] is None
+                    else MetricUnavailableReason(metric["unavailable_reason"])
+                ),
+            )
+            for name, metric in sorted(assessment.supporting_metrics.items())
+        ],
+        created_at=assessment.created_at,
+    )
+
+
+def _underwriting_factor_response(
+    factor: dict[str, str | int],
+) -> UnderwritingFactorResponse:
+    return UnderwritingFactorResponse(
+        metric_name=str(factor["metric_name"]),
+        metric_value=Decimal(str(factor["metric_value"])),
+        comparison=MetricComparison(str(factor["comparison"])),
+        threshold=Decimal(str(factor["threshold"])),
+        score_adjustment=int(factor["score_adjustment"]),
+        description=str(factor["description"]),
     )
 
 

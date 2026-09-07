@@ -8,10 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from loadranger.application.financial_analysis import AnalysedFinancialSnapshot
-from loadranger.domain.financial import FinancialInput
+from loadranger.domain.financial import FinancialInput, MetricResult
 from loadranger.domain.metrics import FinancialInputs
+from loadranger.domain.underwriting import UnderwritingDecision, UnderwritingFactor
 from loadranger.persistence.models import (
     Borrower,
+    CreditAssessment,
     FinancialMetricSnapshot,
     FinancialMetricSnapshotMetric,
     FinancialPeriod,
@@ -114,6 +116,47 @@ class BorrowerRepository:
         )
         return list(self._session.scalars(statement))
 
+    def create_credit_assessment(
+        self,
+        borrower_id: UUID,
+        financial_period_id: UUID,
+        metric_snapshot_id: UUID,
+        decision: UnderwritingDecision,
+    ) -> CreditAssessment:
+        assessment = CreditAssessment(
+            borrower_id=borrower_id,
+            financial_period_id=financial_period_id,
+            metric_snapshot_id=metric_snapshot_id,
+            policy_version=decision.policy_version,
+            score=decision.score,
+            risk_grade=decision.risk_grade.value,
+            recommendation=decision.recommendation.value,
+            positive_factors=[
+                _factor_document(factor) for factor in decision.positive_factors
+            ],
+            risk_factors=[_factor_document(factor) for factor in decision.risk_factors],
+            supporting_metrics={
+                name: _metric_document(result)
+                for name, result in decision.supporting_metrics.items()
+            },
+        )
+        self._session.add(assessment)
+        self._session.flush()
+        return assessment
+
+    def get_credit_assessment(
+        self,
+        borrower_id: UUID,
+        financial_period_id: UUID,
+        assessment_id: UUID,
+    ) -> CreditAssessment | None:
+        statement = select(CreditAssessment).where(
+            CreditAssessment.id == assessment_id,
+            CreditAssessment.borrower_id == borrower_id,
+            CreditAssessment.financial_period_id == financial_period_id,
+        )
+        return self._session.scalar(statement)
+
 
 def _amount(value: FinancialInput) -> Decimal | None:
     return None if value is None else value.amount
@@ -124,3 +167,21 @@ def _decimal_scale(value: Decimal) -> int:
     if not isinstance(exponent, int):
         raise ValueError("metric values must be finite")
     return max(0, -exponent)
+
+
+def _factor_document(factor: UnderwritingFactor) -> dict[str, str | int]:
+    return {
+        "metric_name": factor.metric_name,
+        "metric_value": str(factor.metric_value),
+        "comparison": factor.comparison.value,
+        "threshold": str(factor.threshold),
+        "score_adjustment": factor.score_adjustment,
+        "description": factor.description,
+    }
+
+
+def _metric_document(result: MetricResult) -> dict[str, str | None]:
+    return {
+        "value": None if result.value is None else str(result.value),
+        "unavailable_reason": None if result.reason is None else result.reason.value,
+    }

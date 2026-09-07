@@ -7,6 +7,11 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from loadranger.domain.financial import MetricUnavailableReason
+from loadranger.domain.underwriting import (
+    MetricComparison,
+    RiskGrade,
+    UnderwritingRecommendation,
+)
 
 
 class BorrowerCreate(BaseModel):
@@ -61,3 +66,27 @@ class FinancialMetricSnapshotResponse(BaseModel):
     calculation_version: str
     created_at: datetime
     metrics: list[MetricSnapshotMetricResponse]
+
+
+class UnderwritingFactorResponse(BaseModel):
+    metric_name: str
+    metric_value: Decimal
+    comparison: MetricComparison
+    threshold: Decimal
+    score_adjustment: int
+    description: str
+
+
+class CreditAssessmentResponse(BaseModel):
+    id: UUID
+    borrower_id: UUID
+    financial_period_id: UUID
+    metric_snapshot_id: UUID
+    policy_version: str
+    score: int
+    risk_grade: RiskGrade
+    recommendation: UnderwritingRecommendation
+    positive_factors: list[UnderwritingFactorResponse]
+    risk_factors: list[UnderwritingFactorResponse]
+    supporting_metrics: list[MetricSnapshotMetricResponse]
+    created_at: datetime

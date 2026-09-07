@@ -164,6 +164,86 @@ def test_reanalysing_a_period_retains_each_prior_metric_snapshot(
     ]
 
 
+def test_run_and_retrieve_an_explainable_credit_assessment(
+    client: TestClient,
+) -> None:
+    borrower_id = client.post(
+        "/borrowers", json={"legal_name": "Acme Manufacturing Ltd"}
+    ).json()["id"]
+    period_id = client.post(
+        f"/borrowers/{borrower_id}/financial-periods",
+        json={
+            "period_end": "2025-12-31",
+            "total_debt": "400.00",
+            "cash": "0.00",
+            "ebitda": "100.00",
+            "interest_expense": "25.00",
+        },
+    ).json()["id"]
+    path = f"/borrowers/{borrower_id}/financial-periods/{period_id}/credit-assessments"
+
+    created = client.post(path)
+    assert created.status_code == 201
+    assessment = created.json()
+    retrieved = client.get(f"{path}/{assessment['id']}")
+
+    assert assessment["borrower_id"] == borrower_id
+    assert assessment["financial_period_id"] == period_id
+    assert assessment["policy_version"] == "v1"
+    assert assessment["score"] == 40
+    assert assessment["risk_grade"] == "high"
+    assert assessment["recommendation"] == "decline"
+    assert assessment["positive_factors"] == [
+        {
+            "metric_name": "interest_coverage",
+            "metric_value": "4.0000",
+            "comparison": "at_least",
+            "threshold": "3.0000",
+            "score_adjustment": 5,
+            "description": "Interest coverage supports repayment capacity.",
+        }
+    ]
+    assert assessment["risk_factors"] == [
+        {
+            "metric_name": "net_debt_to_ebitda",
+            "metric_value": "4.0000",
+            "comparison": "at_least",
+            "threshold": "4.0000",
+            "score_adjustment": -35,
+            "description": "Leverage exceeds the demonstrator limit.",
+        }
+    ]
+    assert assessment["supporting_metrics"] == [
+        {
+            "name": "interest_coverage",
+            "value": "4.0000",
+            "unavailable_reason": None,
+        },
+        {
+            "name": "net_debt_to_ebitda",
+            "value": "4.0000",
+            "unavailable_reason": None,
+        },
+    ]
+    assert retrieved.status_code == 200
+    assert retrieved.json() == assessment
+
+
+def test_credit_assessment_rejects_a_period_outside_the_borrower(
+    client: TestClient,
+) -> None:
+    borrower_id = client.post(
+        "/borrowers", json={"legal_name": "Acme Manufacturing Ltd"}
+    ).json()["id"]
+
+    response = client.post(
+        f"/borrowers/{borrower_id}/financial-periods/00000000-0000-0000-0000-000000000000/credit-assessments"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Period not found"}
+
+
 def test_missing_borrower_returns_404(client: TestClient) -> None:
     response = client.get("/borrowers/00000000-0000-0000-0000-000000000000")
 

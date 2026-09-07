@@ -14,6 +14,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -114,3 +115,41 @@ class FinancialMetricSnapshotMetric(Base):
     value_scale: Mapped[int | None] = mapped_column(nullable=True)
     unavailable_reason: Mapped[str | None] = mapped_column(String(64))
     snapshot: Mapped[FinancialMetricSnapshot] = relationship(back_populates="metrics")
+
+
+class CreditAssessment(Base):
+    """An immutable, explainable underwriting decision for one reporting period."""
+
+    __tablename__ = "credit_assessments"
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    borrower_id: Mapped[UUID] = mapped_column(
+        ForeignKey("borrowers.id"), nullable=False
+    )
+    financial_period_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_periods.id"), nullable=False
+    )
+    metric_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_metric_snapshots.id"), nullable=False
+    )
+    policy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    score: Mapped[int] = mapped_column(nullable=False)
+    risk_grade: Mapped[str] = mapped_column(String(16), nullable=False)
+    recommendation: Mapped[str] = mapped_column(String(16), nullable=False)
+    positive_factors: Mapped[list[dict[str, str | int]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    risk_factors: Mapped[list[dict[str, str | int]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    supporting_metrics: Mapped[dict[str, dict[str, str | None]]] = mapped_column(
+        JSONB, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utc_now,
+        server_default=func.now(),
+    )
