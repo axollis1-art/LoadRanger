@@ -42,4 +42,4 @@ endpoint is available at http://127.0.0.1:8000/health.
 
 ## Development container
 
-Open this folder in VS Code and select **Dev Containers: Reopen in Container**. The container provides Python 3.13, Git, GitHub CLI, `uv`, and recommended Python editor extensions (Pylance and Ruff). It synchronises the locked project dependencies and installs the pre-commit hook when created.
+Open this folder in VS Code and select **Dev Containers: Reopen in Container**. The container provides Python 3.13, Git, GitHub CLI, Docker CLI with access to the host Docker daemon, `uv`, and recommended Python editor extensions (Pylance and Ruff). It synchronises the locked project dependencies and installs the pre-commit hook when created.
