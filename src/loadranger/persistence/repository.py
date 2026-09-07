@@ -13,9 +13,12 @@ from loadranger.domain.metrics import FinancialInputs
 from loadranger.domain.underwriting import UnderwritingDecision, UnderwritingFactor
 from loadranger.persistence.models import (
     Borrower,
+    CovenantAlert,
     CovenantDefinition,
     CovenantFrequency,
     CovenantOperator,
+    CovenantTest,
+    CovenantTestStatus,
     CreditAssessment,
     Facility,
     FinancialMetricSnapshot,
@@ -75,6 +78,58 @@ class BorrowerRepository:
             raise ValueError("facility and covenant definition must exist")
         facility.covenants.append(covenant)
         self._session.flush()
+
+    def record_covenant_test(
+        self,
+        covenant_definition_id: UUID,
+        financial_period_id: UUID,
+        metric_snapshot_id: UUID,
+        status: CovenantTestStatus,
+        headroom: Decimal | None,
+    ) -> CovenantTest:
+        covenant_test = CovenantTest(
+            covenant_definition_id=covenant_definition_id,
+            financial_period_id=financial_period_id,
+            metric_snapshot_id=metric_snapshot_id,
+            status=status.value,
+            headroom=headroom,
+        )
+        self._session.add(covenant_test)
+        self._session.flush()
+        if status in {CovenantTestStatus.WARNING, CovenantTestStatus.BREACH}:
+            existing = self._session.scalar(
+                select(CovenantAlert).where(
+                    CovenantAlert.covenant_definition_id == covenant_definition_id,
+                    CovenantAlert.financial_period_id == financial_period_id,
+                    CovenantAlert.severity == status.value,
+                )
+            )
+            if existing is None:
+                self._session.add(
+                    CovenantAlert(
+                        covenant_definition_id=covenant_definition_id,
+                        financial_period_id=financial_period_id,
+                        covenant_test_id=covenant_test.id,
+                        severity=status.value,
+                        lifecycle_status="open",
+                    )
+                )
+                self._session.flush()
+        return covenant_test
+
+    def list_alerts(
+        self, covenant_definition_id: UUID, financial_period_id: UUID
+    ) -> list[CovenantAlert]:
+        return list(
+            self._session.scalars(
+                select(CovenantAlert)
+                .where(
+                    CovenantAlert.covenant_definition_id == covenant_definition_id,
+                    CovenantAlert.financial_period_id == financial_period_id,
+                )
+                .order_by(CovenantAlert.created_at)
+            )
+        )
 
     def record_financial_period(
         self,

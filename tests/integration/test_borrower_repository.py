@@ -16,6 +16,7 @@ from loadranger.persistence.models import (
     CovenantDefinition,
     CovenantFrequency,
     CovenantOperator,
+    CovenantTestStatus,
     CreditAssessment,
 )
 from loadranger.persistence.repository import BorrowerRepository
@@ -105,6 +106,52 @@ def test_covenant_rejects_warning_thresholds_on_the_breached_side(
     session.add(covenant)
 
     with pytest.raises(IntegrityError):
+        session.flush()
+
+
+def test_covenant_history_is_immutable_and_equivalent_alerts_are_deduplicated(
+    session: Session,
+) -> None:
+    repository = BorrowerRepository(session)
+    borrower = repository.create_borrower("Acme Manufacturing Ltd")
+    period = repository.record_financial_period(borrower.id, date(2025, 12, 31))
+    facility = repository.create_facility(borrower.id, "Senior term loan")
+    covenant = repository.create_covenant_definition(
+        name="Maximum leverage",
+        metric_name="net_debt_to_ebitda",
+        operator=CovenantOperator.AT_MOST,
+        threshold=Decimal("4.0000"),
+        warning_threshold=Decimal("3.5000"),
+        frequency=CovenantFrequency.QUARTERLY,
+    )
+    repository.attach_covenant_to_facility(facility.id, covenant.id)
+    snapshot = repository.create_metric_snapshot(
+        period.id, analyse_financial_inputs(FinancialInputs())
+    )
+
+    first = repository.record_covenant_test(
+        covenant.id,
+        period.id,
+        snapshot.id,
+        CovenantTestStatus.WARNING,
+        Decimal("0.1250"),
+    )
+    second = repository.record_covenant_test(
+        covenant.id,
+        period.id,
+        snapshot.id,
+        CovenantTestStatus.WARNING,
+        Decimal("0.1250"),
+    )
+
+    assert first.id != second.id
+    assert first.metric_snapshot_id == snapshot.id
+    alerts = repository.list_alerts(covenant.id, period.id)
+    assert len(alerts) == 1
+    assert alerts[0].severity == CovenantTestStatus.WARNING.value
+    assert alerts[0].lifecycle_status == "open"
+    first.status = CovenantTestStatus.BREACH.value
+    with pytest.raises(DBAPIError, match="immutable"):
         session.flush()
 
 

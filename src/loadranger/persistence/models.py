@@ -41,6 +41,13 @@ class CovenantFrequency(StrEnum):
     ANNUALLY = "annually"
 
 
+class CovenantTestStatus(StrEnum):
+    PASS = "pass"
+    WARNING = "warning"
+    BREACH = "breach"
+    NON_COMPARABLE = "non_comparable"
+
+
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -127,6 +134,65 @@ class CovenantDefinition(Base):
     facilities: Mapped[list[Facility]] = relationship(
         secondary=facility_covenants,
         back_populates="covenants",
+    )
+
+
+class CovenantTest(Base):
+    """An immutable evaluated covenant result retained as history."""
+
+    __tablename__ = "covenant_tests"
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    covenant_definition_id: Mapped[UUID] = mapped_column(
+        ForeignKey("covenant_definitions.id"), nullable=False
+    )
+    financial_period_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_periods.id"), nullable=False
+    )
+    metric_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_metric_snapshots.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    headroom: Mapped[Decimal | None] = mapped_column(Numeric(18, 4))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utc_now,
+        server_default=func.now(),
+    )
+
+
+class CovenantAlert(Base):
+    """An open warning or breach alert, deduplicated by covenant and period."""
+
+    __tablename__ = "covenant_alerts"
+    __table_args__ = (
+        UniqueConstraint("covenant_definition_id", "financial_period_id", "severity"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid4
+    )
+    covenant_definition_id: Mapped[UUID] = mapped_column(
+        ForeignKey("covenant_definitions.id"), nullable=False
+    )
+    financial_period_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_periods.id"), nullable=False
+    )
+    covenant_test_id: Mapped[UUID] = mapped_column(
+        ForeignKey("covenant_tests.id"), nullable=False
+    )
+    severity: Mapped[str] = mapped_column(String(32), nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="open"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utc_now,
+        server_default=func.now(),
     )
 
 
