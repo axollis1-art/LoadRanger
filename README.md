@@ -40,6 +40,9 @@ if Docker is unavailable.
 Start the API with `uv run uvicorn loadranger.main:app --reload`; its health
 endpoint is available at http://127.0.0.1:8000/health.
 
+For a deterministic local portfolio that demonstrates healthy, warning, and
+breach cases, see [the demo scenarios](docs/demo-scenarios.md).
+
 ## Development container
 
 Open this folder in VS Code and select **Dev Containers: Reopen in Container**. The container provides Python 3.13, Git, GitHub CLI, Docker CLI with access to the host Docker daemon, `uv`, and recommended Python editor extensions (Pylance and Ruff). It synchronises the locked project dependencies and installs the pre-commit hook when created.

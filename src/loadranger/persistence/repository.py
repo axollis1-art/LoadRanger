@@ -24,7 +24,6 @@ from loadranger.persistence.models import (
     FinancialMetricSnapshot,
     FinancialMetricSnapshotMetric,
     FinancialPeriod,
-    facility_covenants,
 )
 
 
@@ -164,16 +163,10 @@ class BorrowerRepository:
             self._session.scalars(
                 select(CovenantAlert)
                 .join(
-                    CovenantDefinition,
-                    CovenantDefinition.id == CovenantAlert.covenant_definition_id,
+                    FinancialPeriod,
+                    FinancialPeriod.id == CovenantAlert.financial_period_id,
                 )
-                .join(
-                    facility_covenants,
-                    facility_covenants.c.covenant_definition_id
-                    == CovenantDefinition.id,
-                )
-                .join(Facility, Facility.id == facility_covenants.c.facility_id)
-                .where(Facility.borrower_id == borrower_id)
+                .where(FinancialPeriod.borrower_id == borrower_id)
                 .order_by(CovenantAlert.created_at.desc())
             )
         )
