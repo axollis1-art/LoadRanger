@@ -1,0 +1,14 @@
+<section>
+  <h2>Financial metrics</h2>
+  <dl>
+  {% for metric in summary.snapshot.metrics if summary.snapshot %}
+    <dt>{{ metric.name.replace('_', ' ') }}</dt><dd>{{ metric.value if metric.value is not none else metric.unavailable_reason }}</dd>
+  {% endfor %}
+  </dl>
+  <h2>Assessment</h2>
+  {% if summary.assessment %}<p>{{ summary.assessment.risk_grade }} — {{ summary.assessment.recommendation }}</p>{% else %}<p>No assessment</p>{% endif %}
+  <h2>Covenant history</h2>
+  <ul>{% for test in summary.covenant_tests %}<li>{{ test.status }} ({{ test.headroom }})</li>{% endfor %}</ul>
+  <h2>Open alerts</h2>
+  <ul>{% for alert in summary.alerts %}<li>{{ alert.severity }}</li>{% endfor %}</ul>
+</section>
