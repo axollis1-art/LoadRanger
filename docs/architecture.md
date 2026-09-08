@@ -27,7 +27,7 @@ in v1.
 | Validation contracts | Pydantic v2 | Explicit boundary validation and serialisation. |
 | Persistence | PostgreSQL + SQLAlchemy 2.0 | Credible relational modelling and portable SQL. |
 | Schema changes | Alembic | Versioned, reproducible database migrations. |
-| UI | Jinja templates + HTMX (later in v1) | A small Python-led demo UI without a separate frontend build. |
+| UI | Jinja templates + HTMX | A small Python-led demo UI without a separate frontend build. |
 | Tests | pytest, pytest-cov, HTTPX | Fast unit tests first, then API workflow tests. |
 | Quality | Ruff, mypy | Consistent formatting/linting and useful type checking. |
 | Local environment | Docker Compose | One-command PostgreSQL and repeatable local setup. |
@@ -44,8 +44,8 @@ src/loadranger/
   domain/        Pure models, enums, calculation and rule logic
   application/   Use cases that coordinate domain logic and repositories
   persistence/   SQLAlchemy mappings, repositories and migrations integration
-  web/           Jinja templates and HTMX endpoints (after API workflows work)
-  seed/          Explicit synthetic demo scenarios
+  web.py          Jinja templates and HTMX dashboard endpoints
+  demo.py         Explicit synthetic demo scenarios
 tests/
   unit/          Pure financial/rule logic; no database or HTTP
   integration/   Repository and migration behaviour

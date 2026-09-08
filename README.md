@@ -22,6 +22,11 @@ uv run pre-commit install
 ./scripts/test-integration.sh
 ```
 
+For a recruiter-level demonstration after the database is running, start the
+API, run `uv run python -m loadranger.demo`, and follow the
+[portfolio walkthrough](docs/portfolio-walkthrough.md). It includes the API
+workflow, seeded dashboard demonstration, assumptions, and AI review boundary.
+
 Run the complete local verification suite:
 
 ```bash
